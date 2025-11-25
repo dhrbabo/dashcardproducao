@@ -347,10 +347,10 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
         <div style="background: #e9ecef; border-radius: 10px; height: 30px; margin: 8px 0; position: relative;">
             <div style="background: {cor_borda}; border-radius: 10px; height: 100%; width: {min(percentual_conclusao_linha, 100)}%; transition: width 0.3s ease;"></div>
             <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; color: {'white' if percentual_conclusao_linha > 70 else 'black'};">
-                {total_produzido_linha:,} / {total_objetivo_linha:,}
+                {total_produzido_linha:,.0f} / {total_objetivo_linha:,.0f}
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """.replace(",", "."), unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
         with col1:
