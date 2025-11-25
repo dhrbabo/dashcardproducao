@@ -115,13 +115,17 @@ def importar_csv_github(url):
         # Ler CSV com ponto e vírgula como separador
         df = pd.read_csv(io.StringIO(response.text), sep=';')
         
-        # Verificar se as colunas necessárias existem
+        # ✅ ATUALIZADO: Verificar se as colunas necessárias existem (DHAPO é opcional)
         colunas_necessarias = ['LINHA', 'DESCRPROD', 'QTDAPONTADA', 'TOTALSEMANA', 'SALDOSEMANA']
         colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
         
         if colunas_faltantes:
             st.error(f"❌ Colunas faltantes no CSV: {colunas_faltantes}")
             return None
+        
+        # ✅ NOVO: Verificar se a coluna DHAPO existe e avisar se não
+        if 'DHAPO' not in df.columns:
+            st.warning("⚠️ Coluna DHAPO não encontrada no CSV. Os dados de último apontamento não serão exibidos.")
         
         # Atualizar timestamp e hash
         st.session_state.data_last_updated = time.time()
@@ -182,6 +186,22 @@ def processar_dados_base_real(df):
     
     dados_processados = []
     
+    # ✅ NOVO: Calcular o último DHAPO por linha
+    dh_apontamento_por_linha = {}
+    if 'DHAPO' in df.columns:
+        for linha in df['LINHA'].unique():
+            dh_linha = df[df['LINHA'] == linha]['DHAPO']
+            # Encontrar o maior DHAPO (mais recente) para a linha
+            dh_validos = [dh for dh in dh_linha if pd.notna(dh)]
+            if dh_validos:
+                try:
+                    # Converter para datetime e pegar o mais recente
+                    dh_dates = [pd.to_datetime(dh) for dh in dh_validos]
+                    dh_apontamento_por_linha[linha] = max(dh_dates)
+                except:
+                    # Se não conseguir converter, usar o último não-nulo
+                    dh_apontamento_por_linha[linha] = dh_validos[-1]
+    
     for index, row in df.iterrows():
         try:
             if pd.isna(row['LINHA']) or row['LINHA'] == '':
@@ -217,7 +237,8 @@ def processar_dados_base_real(df):
                 'PERC': round(percentual, 1),
                 'SALDOSEMANA': saldo_semana,
                 'DIA_ATUAL': dia_atual_nome,
-                'COLUNA_USADA': coluna_dia_atual
+                'COLUNA_USADA': coluna_dia_atual,
+                'DHAPO_LINHA': dh_apontamento_por_linha.get(linha)  # ✅ NOVO: DHAPO da linha
             })
             
         except Exception:
@@ -296,6 +317,9 @@ def obter_cor_status(percentual):
 def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rotation_index=0):
     dados_linha = linha_data[linha_data['LINHA'] == linha_nome]
     
+    if dados_linha.empty:
+        return
+    
     total_produzido_linha = dados_linha['QTDAPONTADA'].sum()
     total_objetivo_linha = dados_linha['TOTALSEMANA'].sum()
     percentual_conclusao_linha = (total_produzido_linha / total_objetivo_linha * 100) if total_objetivo_linha > 0 else 0
@@ -310,14 +334,20 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
     
     descrprod = produto_atual['DESCRPROD']
     qtd_produzida_produto = produto_atual['QTDAPONTADA']
+    qtd_objetivo_produto = dados_linha['META_DIA'][dados_linha['DESCRPROD'] == descrprod].sum()
+    percentual_produto = qtd_produzida_produto / qtd_objetivo_produto * 100 if qtd_objetivo_produto > 0 else 0
     
     meta_dia_produto = 0
     dia_atual = ""
+    
     for _, row in dados_linha.iterrows():
         if row['DESCRPROD'] == descrprod:
             meta_dia_produto = row['META_DIA']
             dia_atual = row['DIA_ATUAL']
             break
+    
+    # ✅ NOVO: Capturar DHAPO da linha (não do produto)
+    dh_apontamento_linha = dados_linha.iloc[0]['DHAPO_LINHA'] if 'DHAPO_LINHA' in dados_linha.columns else None
     
     cor_borda, status, status_text, _ = obter_cor_status(percentual_conclusao_linha)
     
@@ -326,6 +356,20 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
     
     linha_nome_limitado = limitar_texto(linha_nome, max_caracteres_linha)
     descrprod_limitado = limitar_texto(descrprod, max_caracteres_produto)
+    
+    # ✅ NOVO: Formatar a data/hora do apontamento DA LINHA
+    dh_apontamento_formatado = ""
+    if dh_apontamento_linha and pd.notna(dh_apontamento_linha):
+        try:
+            if isinstance(dh_apontamento_linha, str):
+                # Tentar converter string para datetime
+                dh_apontamento_dt = pd.to_datetime(dh_apontamento_linha)
+            else:
+                dh_apontamento_dt = dh_apontamento_linha
+                
+            dh_apontamento_formatado = dh_apontamento_dt.strftime("%d/%m/%Y %H:%M")
+        except:
+            dh_apontamento_formatado = str(dh_apontamento_linha)
     
     with st.container():
         st.markdown(f"""
@@ -341,8 +385,8 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
         
         
         st.markdown(f"<div style='font-size: 20px; color: #666; margin-bottom: 8px; line-height: 1.0; margin: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{descrprod}'>{descrprod_limitado}</div>", unsafe_allow_html=True)
-        
-        
+        st.markdown(f"<div style='font-size: 20px; color: #666; margin-bottom: 8px; line-height: 1.0; margin: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{descrprod}'>| 🏭: {produto_index + 1}º | ✅: {qtd_produzida_produto:,.0f} | 🎯: {qtd_objetivo_produto:,.0f} | 📊: {percentual_produto:.0f}% |</div>".replace(",", "."), unsafe_allow_html=True)
+
         st.markdown(f"""
         <div style="background: #e9ecef; border-radius: 10px; height: 30px; margin: 8px 0; position: relative;">
             <div style="background: {cor_borda}; border-radius: 10px; height: 100%; width: {min(percentual_conclusao_linha, 100)}%; transition: width 0.3s ease;"></div>
@@ -356,13 +400,28 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
         with col1:
             fig = create_gauge_chart(percentual_conclusao_linha)
             st.plotly_chart(fig, use_container_width=True, key=f"gauge_{linha_nome}_{product_rotation_index}")
-        with col2:
-            st.metric(
-                "Meta Dia (Produto)", 
-                f"{meta_dia_produto:,.0f}".replace(",", "."),
-                label_visibility="visible"
-            )
-            st.caption(f"📦 {produto_index + 1}/{len(produtos_da_linha)} produtos")
+            st.markdown("""
+            <style>
+            div[data-testid="stMetricValue"] {
+                font-size: 24px !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            with col2:            
+                if dh_apontamento_formatado:
+                    st.metric(
+                        "Último Apontamento",
+                        dh_apontamento_formatado,
+                        label_visibility="visible"
+                    )
+                else:
+                    st.metric(
+                        "Último Apontamento",
+                        "N/A",
+                        label_visibility="visible"
+                    )
+                st.caption(f"📦 {produto_index + 1}/{len(produtos_da_linha)} produtos")
 
 # ✅ CARREGAMENTO AUTOMÁTICO AO INICIAR
 if st.session_state.df_processado is None and st.session_state.github_url:
