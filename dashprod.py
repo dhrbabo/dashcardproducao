@@ -726,11 +726,11 @@ if st.session_state.auto_refresh:
 
 # Organizar em grid - AGORA ORDENADO POR STATUS
 if len(linhas_filtradas) > 0:
-    cols = st.columns(5)
+    cols = st.columns(2)
     
     for idx, linha_info in enumerate(linhas_ordenadas):
         linha = linha_info['nome']
-        col_idx = idx % 5
+        col_idx = idx % 2
         with cols[col_idx]:
             rotation_idx = st.session_state.rotacao_por_linha.get(linha, 0)
             create_compact_card(linha, df_processado, produtos_por_linha, rotation_idx)
