@@ -259,7 +259,7 @@ def processar_dados_base_real(df):
                 'SALDOSEMANA': saldo_semana,
                 'DIA_ATUAL': dia_atual_nome,
                 'COLUNA_USADA': coluna_dia_atual,
-                'DHAPO_LINha': dh_apontamento_por_linha.get(linha)
+                'DHAPO_LINHA': dh_apontamento_por_linha.get(linha)
             })
             
         except Exception:
@@ -427,7 +427,7 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
         qtd_objetivo_produto = produto_data['META_DIA'].iloc[0]
         percentual_produto = (qtd_produzida_produto / qtd_objetivo_produto * 100) if qtd_objetivo_produto > 0 else 0
         dia_atual = produto_data['DIA_ATUAL'].iloc[0]
-        dh_apontamento_linha = produto_data['DHAPO_LINha'].iloc[0] if 'DHAPO_LINha' in produto_data.columns else None
+        dh_apontamento_linha = produto_data['DHAPO_LINHA'].iloc[0] if 'DHAPO_LINHA' in produto_data.columns else None
     else:
         qtd_objetivo_produto = 0
         percentual_produto = 0
