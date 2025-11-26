@@ -10,7 +10,6 @@ import io
 
 # Configuração da página
 st.set_page_config(page_title="Dashboard - Linhas de Produção", layout="wide")
-st.title("🏭 Linhas de Produção - Status do Dia")
 
 # CSS para auto-refresh
 st.markdown("""
@@ -63,6 +62,26 @@ if 'data_last_updated' not in st.session_state:
     st.session_state.data_last_updated = None
 if 'last_github_hash' not in st.session_state:  # ✅ NOVO: Para detectar mudanças no GitHub
     st.session_state.last_github_hash = None
+
+# NOVO: Variáveis de paginação e rotação
+if 'pagina_atual' not in st.session_state:
+    st.session_state.pagina_atual = 0
+if 'linhas_por_pagina' not in st.session_state:
+    st.session_state.linhas_por_pagina = 4  # 2x2 = 4 linhas
+if 'tempo_por_produto' not in st.session_state:
+    st.session_state.tempo_por_produto = 10  # segundos por produto
+if 'tempo_por_pagina' not in st.session_state:
+    st.session_state.tempo_por_pagina = 30  # segundos por página
+if 'modo_rotacao' not in st.session_state:
+    st.session_state.modo_rotacao = "produtos"  # "produtos" ou "linhas"
+if 'ultima_troca' not in st.session_state:
+    st.session_state.ultima_troca = time.time()
+if 'last_github_check' not in st.session_state:
+    st.session_state.last_github_check = 0
+if 'produto_refresh_count' not in st.session_state:
+    st.session_state.produto_refresh_count = 0
+if 'pagina_refresh_count' not in st.session_state:
+    st.session_state.pagina_refresh_count = 0
 
 # Funções de negócio
 def obter_dia_atual():
@@ -146,24 +165,24 @@ def verificar_atualizacao_github():
         return False
     
     try:
-        # Converter para raw URL
-        url = st.session_state.github_url
-        if 'raw.githubusercontent.com' not in url and 'github.com' in url:
-            url = url.replace('github.com', 'raw.githubusercontent.com')
-            url = url.replace('/blob/', '/')
+        # ✅ SEMPRE RECARREGAR - abordagem mais simples
+        current_time = time.time()
         
-        # Fazer requisição para verificar mudanças
-        response = requests.get(url)
-        response.raise_for_status()
+        # Verificar se passou tempo suficiente desde a última atualização
+        if hasattr(st.session_state, 'last_github_check'):
+            time_since_last_check = current_time - st.session_state.last_github_check
+            if time_since_last_check < st.session_state.refresh_interval:
+                return False
         
-        current_hash = hash(response.text)
+        st.session_state.last_github_check = current_time
         
-        # Se é a primeira vez ou se o hash mudou
-        if st.session_state.last_github_hash is None or st.session_state.last_github_hash != current_hash:
-            return True
+        # ✅ SEMPRE RETORNAR TRUE para forçar atualização a cada ciclo
+        # Isso garante que sempre vamos verificar mudanças
+        st.sidebar.info("🔍 Verificando GitHub...")
+        return True
             
-    except Exception:
-        pass
+    except Exception as e:
+        st.sidebar.error(f"Erro ao verificar GitHub: {e}")
     
     return False
 
@@ -259,7 +278,7 @@ def limitar_texto(texto, max_caracteres=20):
         return str(texto)[:max_caracteres-3] + "..."
     return str(texto)
 
-def create_gauge_chart(percentual, height=120):
+def create_gauge_chart(percentual, height=150):
     if percentual >= 85:
         color = "#2878a7"
     elif percentual >= 70:
@@ -279,7 +298,12 @@ def create_gauge_chart(percentual, height=120):
         },
         domain = {'x': [0, 1], 'y': [0, 1]},
         gauge = {
-            'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'axis': {
+                'range': [None, 100], 
+                'tickwidth': 0,           # ✅ Largura zero para esconder ticks
+                'tickcolor': "rgba(0,0,0,0)",  # ✅ Cor transparente
+                'showticklabels': False   # ✅ OCULTA OS MARCADORES
+            },
             'bar': {'color': color, 'thickness': 1},
             'bgcolor': "white",
             'borderwidth': 0,
@@ -313,6 +337,81 @@ def obter_cor_status(percentual):
         return "#ffc107", "🟡", "Em Andamento", 3
     else:
         return "#dc3545", "🔴", "Atenção", 4
+
+def obter_maxima_sequencia(produtos_por_linha):
+    """Calcula o número máximo de produtos em qualquer linha"""
+    max_seq = 0
+    for linha, produtos in produtos_por_linha.items():
+        max_seq = max(max_seq, len(produtos))
+    return max_seq
+
+def atualizar_rotacao_produtos():
+    """Atualiza a rotação de produtos usando st_autorefresh"""
+    if not st.session_state.rotacao_ativa or st.session_state.modo_rotacao != "produtos":
+        return
+    
+    # Usar st_autorefresh para controle de tempo
+    produto_refresh = st_autorefresh(
+        interval=st.session_state.tempo_por_produto * 1000, 
+        limit=100, 
+        key="produto_rotation_refresh"
+    )
+    
+    if produto_refresh > 0:
+        # Avançar produto em todas as linhas
+        for linha in st.session_state.get('linhas_filtradas', []):
+            if linha not in st.session_state.rotacao_por_linha:
+                st.session_state.rotacao_por_linha[linha] = 0
+            
+            # Avançar para próximo produto
+            produtos_da_linha = st.session_state.produtos_por_linha.get(linha, [])
+            if produtos_da_linha:
+                st.session_state.rotacao_por_linha[linha] = (
+                    st.session_state.rotacao_por_linha[linha] + 1
+                ) % len(produtos_da_linha)
+        
+        st.session_state.produto_refresh_count += 1
+        
+        # Verificar se todos completaram um ciclo
+        completou_ciclo = all(
+            st.session_state.rotacao_por_linha.get(linha, 0) == 0
+            for linha in st.session_state.get('linhas_filtradas', [])
+        )
+        
+        if completou_ciclo:
+            st.session_state.modo_rotacao = "linhas"
+            st.session_state.ultima_troca = time.time()
+
+def atualizar_rotacao_paginas():
+    """Atualiza a rotação de páginas usando st_autorefresh"""
+    if not st.session_state.rotacao_ativa or st.session_state.modo_rotacao != "linhas":
+        return
+    
+    # Usar st_autorefresh para controle de tempo
+    pagina_refresh = st_autorefresh(
+        interval=st.session_state.tempo_por_pagina * 1000, 
+        limit=100, 
+        key="pagina_rotation_refresh"
+    )
+    
+    if pagina_refresh > 0:
+        total_linhas = len(st.session_state.get('linhas_filtradas', []))
+        total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
+        
+        if total_paginas > 1:
+            st.session_state.pagina_atual = (st.session_state.pagina_atual + 1) % total_paginas
+            st.session_state.modo_rotacao = "produtos"
+            st.session_state.pagina_refresh_count += 1
+
+def obter_linhas_pagina_atual():
+    """Retorna as linhas que devem ser exibidas na página atual"""
+    if not st.session_state.linhas_filtradas:
+        return []
+    
+    start_idx = st.session_state.pagina_atual * st.session_state.linhas_por_pagina
+    end_idx = start_idx + st.session_state.linhas_por_pagina
+    
+    return st.session_state.linhas_filtradas[start_idx:end_idx]
 
 def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rotation_index=0):
     dados_linha = linha_data[linha_data['LINHA'] == linha_nome]
@@ -562,42 +661,63 @@ refresh_interval = st.sidebar.slider(
     help="Intervalo para verificar se o arquivo no GitHub foi atualizado"
 )
 
+# ✅ CONFIGURAÇÃO DE ROTAÇÃO MELHORADA
+st.sidebar.header("🔄 Rotação & Paginação")
+
 rotacao_ativa = st.sidebar.checkbox(
-    "Ativar rotação de produtos", 
+    "Ativar rotação automática", 
     value=st.session_state.rotacao_ativa
+)
+
+# Configurações de tempo
+st.sidebar.subheader("⏱️ Temporização")
+
+tempo_produto = st.sidebar.slider(
+    "Segundos por produto", 
+    min_value=5, 
+    max_value=30, 
+    value=st.session_state.tempo_por_produto,
+    help="Tempo que cada produto fica visível"
+)
+
+tempo_pagina = st.sidebar.slider(
+    "Segundos por página", 
+    min_value=10, 
+    max_value=60, 
+    value=st.session_state.tempo_por_pagina,
+    help="Tempo que cada página fica visível antes de trocar"
+)
+
+linhas_por_pagina = st.sidebar.selectbox(
+    "Linhas por página",
+    options=[4, 6, 8, 10],
+    index=0,
+    help="Número de linhas exibidas por vez (2x2, 2x3, etc)"
 )
 
 st.session_state.auto_refresh = auto_refresh
 st.session_state.refresh_interval = refresh_interval
 st.session_state.rotacao_ativa = rotacao_ativa
+st.session_state.tempo_por_produto = tempo_produto
+st.session_state.tempo_por_pagina = tempo_pagina
+st.session_state.linhas_por_pagina = linhas_por_pagina
 
-# ✅ AUTO-REFRESH COM ATUALIZAÇÃO GARANTIDA
-if st.session_state.auto_refresh:
-    refresh_count = st_autorefresh(
-        interval=st.session_state.refresh_interval * 1000, 
-        limit=100, 
-        key="auto_refresh_component"
-    )
+# Indicador de status da rotação
+if st.session_state.rotacao_ativa:
+    modo_atual = "Produtos" if st.session_state.modo_rotacao == "produtos" else "Páginas"
+    tempo_atual = st.session_state.tempo_por_produto if st.session_state.modo_rotacao == "produtos" else st.session_state.tempo_por_pagina
     
-    # ✅ SEMPRE RECARREGAR DADOS DO GITHUB A CADA CICLO
-    if refresh_count > 0 and st.session_state.data_source == "github" and st.session_state.github_url:
-        # Removido o spinner aqui
-        df_importado = importar_csv_github(st.session_state.github_url)
-        if df_importado is not None:
-            st.session_state.df_processado = processar_dados_base_real(df_importado)
-            st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
-            st.session_state.last_refresh_time = time.time()
-            st.session_state.refresh_counter += 1
-            st.session_state.data_last_updated = time.time()
-            st.sidebar.success(f"✅ Dados atualizados! ({datetime.now().strftime('%H:%M:%S')})")
+    st.sidebar.info(f"**🔄 Modo: {modo_atual}**")
+    st.sidebar.caption(f"Tempo: {tempo_atual}s")
     
-    # Atualizar rotação de produtos
-    if st.session_state.rotacao_ativa:
-        for linha in st.session_state.get('linhas_filtradas', []):
-            if linha not in st.session_state.rotacao_por_linha:
-                st.session_state.rotacao_por_linha[linha] = 0
-            st.session_state.rotacao_por_linha[linha] += 1
-                
+    # Informações da paginação
+    total_linhas = len(st.session_state.get('linhas_filtradas', []))
+    total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
+    
+    if total_paginas > 1:
+        st.sidebar.progress((st.session_state.pagina_atual + 1) / total_paginas)
+        st.sidebar.caption(f"Página {st.session_state.pagina_atual + 1} de {total_paginas}")
+
 # Botão manual para forçar atualização
 if st.sidebar.button("🔄 Forçar Refresh Manual", type="primary"):
     st.session_state.refresh_counter += 1
@@ -660,9 +780,6 @@ else:
     
     st.sidebar.info("📝 **Usando dados de exemplo**")
 
-# Restante do código (filtros, grid, resumo) permanece igual...
-# [O restante do código permanece exatamente igual...]
-
 # Filtros
 st.sidebar.header("🔍 Filtros")
 status_todos = st.sidebar.checkbox("Todos", value=True, key="todos")
@@ -712,6 +829,29 @@ linhas_filtradas = [linha['nome'] for linha in linhas_ordenadas]
 
 st.session_state.linhas_filtradas = linhas_filtradas
 
+# ✅ AUTO-REFRESH COM ATUALIZAÇÃO GARANTIDA
+if st.session_state.auto_refresh:
+    refresh_count = st_autorefresh(
+        interval=st.session_state.refresh_interval * 1000, 
+        limit=100, 
+        key="auto_refresh_component"
+    )
+    
+    # ✅ VERIFICAR ATUALIZAÇÃO DO GITHUB no intervalo configurado
+    if refresh_count > 0 and st.session_state.data_source == "github" and st.session_state.github_url:
+        df_importado = importar_csv_github(st.session_state.github_url)
+        if df_importado is not None:
+            st.session_state.df_processado = processar_dados_base_real(df_importado)
+            st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
+            st.session_state.last_refresh_time = time.time()
+            st.session_state.refresh_counter += 1
+            st.session_state.data_last_updated = time.time()
+
+# ✅ ROTAÇÃO AUTOMÁTICA COM ST_AUTOREFRESH
+# Chamar as funções de rotação que usam st_autorefresh
+atualizar_rotacao_produtos()
+atualizar_rotacao_paginas()
+
 # Indicador visual de auto-refresh
 if st.session_state.auto_refresh:
     current_time = time.time()
@@ -724,18 +864,27 @@ if st.session_state.auto_refresh:
     </div>
     """, unsafe_allow_html=True)
 
-# Organizar em grid - AGORA ORDENADO POR STATUS
-if len(linhas_filtradas) > 0:
-    cols = st.columns(2)
+# Organizar em grid com paginação
+linhas_pagina_atual = obter_linhas_pagina_atual()
+
+if len(linhas_pagina_atual) > 0:
+    # Calcular layout baseado no número de linhas por página
+    num_cols = 2  # Sempre 2 colunas
+    num_rows = (len(linhas_pagina_atual) + num_cols - 1) // num_cols
     
-    for idx, linha_info in enumerate(linhas_ordenadas):
-        linha = linha_info['nome']
-        col_idx = idx % 2
-        with cols[col_idx]:
-            rotation_idx = st.session_state.rotacao_por_linha.get(linha, 0)
-            create_compact_card(linha, df_processado, produtos_por_linha, rotation_idx)
-else:
-    st.warning("ℹ️ Nenhuma linha encontrada com os filtros aplicados.")
+    for row in range(num_rows):
+        cols = st.columns(num_cols)
+        for col in range(num_cols):
+            idx = row * num_cols + col
+            if idx < len(linhas_pagina_atual):
+                linha = linhas_pagina_atual[idx]
+                with cols[col]:
+                    rotation_idx = st.session_state.rotacao_por_linha.get(linha, 0)
+                    create_compact_card(linha, df_processado, produtos_por_linha, rotation_idx)
+    
+    # Indicador de paginação
+    total_linhas = len(st.session_state.get('linhas_filtradas', []))
+    total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
 
 # Resumo geral
 st.sidebar.markdown("---")
@@ -781,36 +930,6 @@ if st.session_state.auto_refresh:
     time_since_last_refresh = current_time - st.session_state.last_refresh_time
     tempo_restante = max(0, st.session_state.refresh_interval - time_since_last_refresh)
     st.sidebar.info(f"**⏱️ Próximo refresh em: {int(tempo_restante)}s**")
-    
-    # ✅ MOSTRAR SE HÁ ATUALIZAÇÕES DETECTADAS
-def verificar_atualizacao_github():
-    if not st.session_state.auto_refresh or st.session_state.data_source != "github":
-        return False
-    
-    if not st.session_state.github_url:
-        return False
-    
-    try:
-        # ✅ SEMPRE RECARREGAR - abordagem mais simples
-        current_time = time.time()
-        
-        # Verificar se passou tempo suficiente desde a última atualização
-        if hasattr(st.session_state, 'last_github_check'):
-            time_since_last_check = current_time - st.session_state.last_github_check
-            if time_since_last_check < st.session_state.refresh_interval:
-                return False
-        
-        st.session_state.last_github_check = current_time
-        
-        # ✅ SEMPRE RETORNAR TRUE para forçar atualização a cada ciclo
-        # Isso garante que sempre vamos verificar mudanças
-        st.sidebar.info("🔍 Verificando GitHub...")
-        return True
-            
-    except Exception as e:
-        st.sidebar.error(f"Erro ao verificar GitHub: {e}")
-    
-    return False
 
 # Legenda das cores
 st.sidebar.markdown("---")
