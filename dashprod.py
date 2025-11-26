@@ -293,7 +293,7 @@ def create_gauge_chart(percentual, height=150):
         value = percentual,
         number = {
             'suffix': '%', 
-            'font': {'size': 38},
+            'font': {'size': 50},
             'valueformat': '.0f'
         },
         domain = {'x': [0, 1], 'y': [0, 1]},
