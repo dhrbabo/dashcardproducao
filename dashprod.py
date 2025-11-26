@@ -503,6 +503,7 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
             <style>
             div[data-testid="stMetricValue"] {
                 font-size: 24px !important;
+                font-weight: bold;
             }
             </style>
             """, unsafe_allow_html=True)
