@@ -389,8 +389,8 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
         """, unsafe_allow_html=True)
         
         
-        st.markdown(f"<div style='font-size: 20px; color: #666; margin-bottom: 8px; line-height: 1.0; margin: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{descrprod}'>{descrprod_limitado}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 20px; color: #666; margin-bottom: 8px; line-height: 1.0; margin: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{descrprod}'>| 🏭: {produto_index + 1}º | ✅: {qtd_produzida_produto:,.0f} | 🎯: {qtd_objetivo_produto:,.0f} | 📊: {percentual_produto:.0f}% |</div>".replace(",", "."), unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size: 20px; color: white; margin-bottom: 8px; line-height: 1.0; margin: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{descrprod}'>{descrprod_limitado}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size: 20px; color: white; margin-bottom: 8px; line-height: 1.0; margin: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' title='{descrprod}'>| ⚙️: {produto_index + 1}º | ✅: {qtd_produzida_produto:,.0f} | 🎯: {qtd_objetivo_produto:,.0f} | 📊: {percentual_produto:.0f}% |</div>".replace(",", "."), unsafe_allow_html=True)
 
         st.markdown(f"""
         <div style="background: #e9ecef; border-radius: 10px; height: 30px; margin: 8px 0; position: relative;">
@@ -827,4 +827,5 @@ st.sidebar.markdown("""
 - **🔴 Vermelho**: Atenção (<50%)
 
 """)
+
 
