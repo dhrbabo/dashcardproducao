@@ -520,7 +520,7 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
                         "N/A",
                         label_visibility="visible"
                     )
-                st.caption(f"📦 {produto_index + 1}/{len(produtos_da_linha)} produtos")
+                st.caption(f"**📦 {produto_index + 1}/{len(produtos_da_linha)} produtos**")
 
 # ✅ CARREGAMENTO AUTOMÁTICO AO INICIAR
 if st.session_state.df_processado is None and st.session_state.github_url:
