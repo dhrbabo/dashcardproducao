@@ -376,7 +376,7 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
         <div style="border: 3px solid {cor_borda}; border-radius: 12px; padding: 12px; margin: 8px; background: {cor_borda}20; box-shadow: 0 2px 4px rgba(0,0,0,0.1); height: 80px; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h4 style="color: white; margin: 0; font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;" title="{linha_nome}">{linha_nome_limitado}</h4>
+                    <h4 style="color: white; margin: 0; font-size: 24px; white-space: nowrap; overflow: hidden; font-weight: bold; text-overflow: ellipsis; max-width: 300px;" title="{linha_nome}">{linha_nome_limitado}</h4>
                     <span style="font-size: 12px; background: {cor_borda}20; margin: 8px; border-radius: 12px; color: {cor_borda}; font-weight: bold;">
                         {status}
                     </span>
