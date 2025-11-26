@@ -27,6 +27,11 @@ st.markdown("""
         font-weight: bold;
         box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
+    /* Remover espaçamento extra entre elementos */
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,9 +40,8 @@ if 'df_processado' not in st.session_state:
     st.session_state.df_processado = None
 if 'produtos_por_linha' not in st.session_state:
     st.session_state.produtos_por_linha = None
-
 if 'auto_refresh' not in st.session_state:
-    st.session_state.auto_refresh = True  # ✅ AGORA ATIVADO POR PADRÃO
+    st.session_state.auto_refresh = True
 if 'rotation_index' not in st.session_state:
     st.session_state.rotation_index = 0
 if 'last_refresh_time' not in st.session_state:
@@ -51,7 +55,7 @@ if 'rotacao_por_linha' not in st.session_state:
 if 'refresh_counter' not in st.session_state:
     st.session_state.refresh_counter = 0
 if 'refresh_interval' not in st.session_state:
-    st.session_state.refresh_interval = 60  # ✅ 60 SEGUNDOS POR PADRÃO
+    st.session_state.refresh_interval = 60
 if 'rotacao_ativa' not in st.session_state:
     st.session_state.rotacao_ativa = True
 if 'github_url' not in st.session_state:
@@ -60,20 +64,20 @@ if 'data_source' not in st.session_state:
     st.session_state.data_source = "github"
 if 'data_last_updated' not in st.session_state:
     st.session_state.data_last_updated = None
-if 'last_github_hash' not in st.session_state:  # ✅ NOVO: Para detectar mudanças no GitHub
+if 'last_github_hash' not in st.session_state:
     st.session_state.last_github_hash = None
 
 # NOVO: Variáveis de paginação e rotação
 if 'pagina_atual' not in st.session_state:
     st.session_state.pagina_atual = 0
 if 'linhas_por_pagina' not in st.session_state:
-    st.session_state.linhas_por_pagina = 4  # 2x2 = 4 linhas
+    st.session_state.linhas_por_pagina = 4
 if 'tempo_por_produto' not in st.session_state:
-    st.session_state.tempo_por_produto = 10  # segundos por produto
+    st.session_state.tempo_por_produto = 10
 if 'tempo_por_pagina' not in st.session_state:
-    st.session_state.tempo_por_pagina = 30  # segundos por página
+    st.session_state.tempo_por_pagina = 30
 if 'modo_rotacao' not in st.session_state:
-    st.session_state.modo_rotacao = "produtos"  # "produtos" ou "linhas"
+    st.session_state.modo_rotacao = "produtos"
 if 'ultima_troca' not in st.session_state:
     st.session_state.ultima_troca = time.time()
 if 'last_github_check' not in st.session_state:
@@ -82,8 +86,10 @@ if 'produto_refresh_count' not in st.session_state:
     st.session_state.produto_refresh_count = 0
 if 'pagina_refresh_count' not in st.session_state:
     st.session_state.pagina_refresh_count = 0
+if 'data_loaded' not in st.session_state:  # ✅ NOVO: Controlar se os dados foram carregados
+    st.session_state.data_loaded = False
 
-# Funções de negócio
+# Funções de negócio (mantidas iguais)
 def obter_dia_atual():
     """Retorna o dia da semana atual em português MAIÚSCULO para compatibilidade"""
     dias_semana_ingles = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
@@ -178,7 +184,6 @@ def verificar_atualizacao_github():
         
         # ✅ SEMPRE RETORNAR TRUE para forçar atualização a cada ciclo
         # Isso garante que sempre vamos verificar mudanças
-        st.sidebar.info("🔍 Verificando GitHub...")
         return True
             
     except Exception as e:
@@ -300,9 +305,9 @@ def create_gauge_chart(percentual, height=150):
         gauge = {
             'axis': {
                 'range': [None, 100], 
-                'tickwidth': 0,           # ✅ Largura zero para esconder ticks
-                'tickcolor': "rgba(0,0,0,0)",  # ✅ Cor transparente
-                'showticklabels': False   # ✅ OCULTA OS MARCADORES
+                'tickwidth': 0,
+                'tickcolor': "rgba(0,0,0,0)",
+                'showticklabels': False
             },
             'bar': {'color': color, 'thickness': 1},
             'bgcolor': "white",
@@ -508,436 +513,447 @@ def create_compact_card(linha_nome, linha_data, produtos_por_linha, product_rota
             </style>
             """, unsafe_allow_html=True)
 
-            with col2:            
-                if dh_apontamento_formatado:
-                    st.metric(
-                        "Último Apontamento",
-                        dh_apontamento_formatado,
-                        label_visibility="visible"
-                    )
-                else:
-                    st.metric(
-                        "Último Apontamento",
-                        "N/A",
-                        label_visibility="visible"
-                    )
-                st.markdown(f"<p style='color: white; font-weight: bold;'>📦 {produto_index + 1}/{len(produtos_da_linha)} produtos</p>", unsafe_allow_html=True)
-
-# ✅ CARREGAMENTO AUTOMÁTICO AO INICIAR
-if st.session_state.df_processado is None and st.session_state.github_url:
-    with st.spinner("Carregando dados do GitHub..."):
-        df_importado = importar_csv_github(st.session_state.github_url)
-        if df_importado is not None:
-            st.session_state.df_processado = processar_dados_base_real(df_importado)
-            st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
-            st.session_state.data_last_updated = time.time()
-
-# ✅ VERIFICAÇÃO DE ATUALIZAÇÃO DO GITHUB
-if verificar_atualizacao_github():
-    df_importado = importar_csv_github(st.session_state.github_url)
-    if df_importado is not None:
-            st.session_state.df_processado = processar_dados_base_real(df_importado)
-            st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
-            st.session_state.refresh_counter += 1
-            st.session_state.data_last_updated = time.time()
-            st.sidebar.success(f"✅ Dados atualizados automaticamente! ({datetime.now().strftime('%H:%M:%S')})")
-
-# Interface principal
-st.sidebar.header("📤 Fonte de Dados")
-
-# Seleção da fonte de dados
-data_source = st.sidebar.radio(
-    "Selecione a fonte de dados:",
-    ["GitHub CSV", "Upload Excel"],
-    index=0,
-    key="data_source_radio"
-)
-
-if data_source == "GitHub CSV":
-    st.session_state.data_source = "github"
-    
-    github_url = st.sidebar.text_input(
-        "🔗 URL do arquivo CSV no GitHub:",
-        value=st.session_state.github_url,
-        placeholder="https://github.com/usuario/repositorio/arquivo.csv",
-        help="Cole a URL direta do arquivo CSV no GitHub"
-    )
-    
-    col1, col2 = st.sidebar.columns(2)
-    
-    with col1:
-        if st.button("📥 Carregar do GitHub", type="primary"):
-            if github_url:
-                with st.spinner("Carregando dados do GitHub..."):
-                    df_importado = importar_csv_github(github_url)
-                    if df_importado is not None:
-                        st.session_state.df_processado = processar_dados_base_real(df_importado)
-                        st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
-                        st.session_state.github_url = github_url
-                        st.session_state.data_last_updated = time.time()
-                        st.sidebar.success("✅ Dados carregados do GitHub com sucesso!")
-                    else:
-                        st.sidebar.error("❌ Erro ao carregar dados do GitHub")
+        with col2:            
+            if dh_apontamento_formatado:
+                st.metric(
+                    "Último Apontamento",
+                    dh_apontamento_formatado,
+                    label_visibility="visible"
+                )
             else:
-                st.sidebar.warning("⚠️ Por favor, insira uma URL do GitHub")
-    
-    with col2:
-        if st.session_state.github_url and st.session_state.df_processado is not None:
-            if st.button("🔄 Atualizar Dados"):
-                with st.spinner("Atualizando dados do GitHub..."):
-                    df_importado = importar_csv_github(st.session_state.github_url)
-                    if df_importado is not None:
-                        st.session_state.df_processado = processar_dados_base_real(df_importado)
-                        st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
-                        st.session_state.refresh_counter += 1
-                        st.session_state.data_last_updated = time.time()
-                        st.sidebar.success("✅ Dados atualizados do GitHub!")
-                        st.rerun()
+                st.metric(
+                    "Último Apontamento",
+                    "N/A",
+                    label_visibility="visible"
+                )
+            st.markdown(f"<p style='color: white; font-weight: bold;'>📦 {produto_index + 1}/{len(produtos_da_linha)} produtos</p>", unsafe_allow_html=True)
 
-else:
-    st.session_state.data_source = "upload"
-    
-    arquivo = st.sidebar.file_uploader(
-        "📤 Carregar planilha Excel",
-        type=['xlsx', 'xls'],
-        help="Faça upload da planilha com os dados de produção"
-    )
-    
-    if arquivo is not None:
-        with st.spinner("Processando arquivo Excel..."):
-            df_importado = importar_excel(arquivo)
+# ✅ CARREGAMENTO AUTOMÁTICO AO INICIAR - CORRIGIDO
+if not st.session_state.data_loaded:
+    if st.session_state.df_processado is None and st.session_state.github_url:
+        with st.spinner("Carregando dados do GitHub..."):
+            df_importado = importar_csv_github(st.session_state.github_url)
             if df_importado is not None:
                 st.session_state.df_processado = processar_dados_base_real(df_importado)
                 st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
                 st.session_state.data_last_updated = time.time()
-                st.sidebar.success(f"✅ {arquivo.name} carregado com sucesso!")
+                st.session_state.data_loaded = True
 
-# Botão para limpar dados carregados
-if st.session_state.df_processado is not None:
-    if st.sidebar.button("🗑️ Limpar Dados Atuais"):
-        st.session_state.df_processado = None
-        st.session_state.produtos_por_linha = None
-        st.session_state.github_url = "https://github.com/ALN84/produ/blob/main/backups/dash_prod.csv"
-        st.session_state.data_last_updated = None
-        st.session_state.last_github_hash = None
-        st.rerun()
+# ✅ VERIFICAÇÃO DE ATUALIZAÇÃO DO GITHUB - CORRIGIDA
+if verificar_atualizacao_github():
+    df_importado = importar_csv_github(st.session_state.github_url)
+    if df_importado is not None:
+        st.session_state.df_processado = processar_dados_base_real(df_importado)
+        st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
+        st.session_state.refresh_counter += 1
+        st.session_state.data_last_updated = time.time()
 
-# Exibir dia atual na sidebar
-dia_atual = obter_dia_atual()
-st.sidebar.markdown(f"**📅 Dia de Hoje: {dia_atual}**")
+# ✅ CORREÇÃO: Remover elementos vazios e reorganizar a interface
+# Usar containers vazios para evitar criação de linhas extras
+main_container = st.container()
 
-# Configurações de caracteres
-st.sidebar.header("⚙️ Configurações de Texto")
-novo_max_linha = st.sidebar.slider(
-    "Máx. caracteres - Nome da Linha",
-    min_value=10,
-    max_value=50,
-    value=st.session_state.max_caracteres_linha
-)
-
-novo_max_produto = st.sidebar.slider(
-    "Máx. caracteres - Nome do Produto", 
-    min_value=10,
-    max_value=50,
-    value=st.session_state.max_caracteres_produto
-)
-
-st.session_state.max_caracteres_linha = novo_max_linha
-st.session_state.max_caracteres_produto = novo_max_produto
-
-# ✅ CONFIGURAÇÃO DE AUTO-REFRESH MELHORADA
-st.sidebar.header("🔄 Auto-Refresh & Rotação")
-
-auto_refresh = st.sidebar.checkbox(
-    "Ativar Auto-Refresh com atualização de dados", 
-    value=st.session_state.auto_refresh,
-    help="Atualiza automaticamente os dados do GitHub quando houver mudanças"
-)
-
-refresh_interval = st.sidebar.slider(
-    "Intervalo de verificação (segundos)", 
-    min_value=10, 
-    max_value=300, 
-    value=st.session_state.refresh_interval,
-    help="Intervalo para verificar se o arquivo no GitHub foi atualizado"
-)
-
-# ✅ CONFIGURAÇÃO DE ROTAÇÃO MELHORADA
-st.sidebar.header("🔄 Rotação & Paginação")
-
-rotacao_ativa = st.sidebar.checkbox(
-    "Ativar rotação automática", 
-    value=st.session_state.rotacao_ativa
-)
-
-# Configurações de tempo
-st.sidebar.subheader("⏱️ Temporização")
-
-tempo_produto = st.sidebar.slider(
-    "Segundos por produto", 
-    min_value=5, 
-    max_value=30, 
-    value=st.session_state.tempo_por_produto,
-    help="Tempo que cada produto fica visível"
-)
-
-tempo_pagina = st.sidebar.slider(
-    "Segundos por página", 
-    min_value=10, 
-    max_value=60, 
-    value=st.session_state.tempo_por_pagina,
-    help="Tempo que cada página fica visível antes de trocar"
-)
-
-linhas_por_pagina = st.sidebar.selectbox(
-    "Linhas por página",
-    options=[4, 6, 8, 10],
-    index=0,
-    help="Número de linhas exibidas por vez (2x2, 2x3, etc)"
-)
-
-st.session_state.auto_refresh = auto_refresh
-st.session_state.refresh_interval = refresh_interval
-st.session_state.rotacao_ativa = rotacao_ativa
-st.session_state.tempo_por_produto = tempo_produto
-st.session_state.tempo_por_pagina = tempo_pagina
-st.session_state.linhas_por_pagina = linhas_por_pagina
-
-# Indicador de status da rotação
-if st.session_state.rotacao_ativa:
-    modo_atual = "Produtos" if st.session_state.modo_rotacao == "produtos" else "Páginas"
-    tempo_atual = st.session_state.tempo_por_produto if st.session_state.modo_rotacao == "produtos" else st.session_state.tempo_por_pagina
+with main_container:
+    # Interface principal - TUDO DENTRO DE UM ÚNICO CONTAINER
+    st.sidebar.header("📤 Fonte de Dados")
     
-    st.sidebar.info(f"**🔄 Modo: {modo_atual}**")
-    st.sidebar.caption(f"Tempo: {tempo_atual}s")
-    
-    # Informações da paginação
-    total_linhas = len(st.session_state.get('linhas_filtradas', []))
-    total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
-    
-    if total_paginas > 1:
-        st.sidebar.progress((st.session_state.pagina_atual + 1) / total_paginas)
-        st.sidebar.caption(f"Página {st.session_state.pagina_atual + 1} de {total_paginas}")
-
-# Botão manual para forçar atualização
-if st.sidebar.button("🔄 Forçar Refresh Manual", type="primary"):
-    st.session_state.refresh_counter += 1
-    if st.session_state.rotacao_ativa:
-        for linha in st.session_state.get('linhas_filtradas', []):
-            if linha not in st.session_state.rotacao_por_linha:
-                st.session_state.rotacao_por_linha[linha] = 0
-            st.session_state.rotacao_por_linha[linha] += 1
-    st.session_state.last_refresh_time = time.time()
-    st.rerun()
-
-# Carregar dados - Prioridade para dados carregados
-if st.session_state.df_processado is not None:
-    df_processado = st.session_state.df_processado
-    produtos_por_linha = st.session_state.produtos_por_linha
-    
-    if st.session_state.data_source == "github":
-        st.sidebar.info("📊 **Fonte:** GitHub CSV")
-        if st.session_state.github_url:
-            st.sidebar.caption(f"URL: {st.session_state.github_url[:50]}...")
-    else:
-        st.sidebar.info("📊 **Fonte:** Arquivo Excel")
-    
-else:
-    @st.cache_data(ttl=60)
-    def load_data():
-        data = []
-        linhas_produtos = {
-            "VINAGRE 500 1": ["8 - VINAGRE DE ALCOOL 500ML SADIO"],
-            "TEMPERO SECO SACHE 1": ["3343 - ALECRIM PC 7G SADIO", "9961 - TEMPERO DO CHEF PC 30G SADIO"],
-            "TEMPERO SECO MANUAL 1": ["7488 - PIMENTA PRETA REFIL 40G MR MAKER", "9704 - TEMPERO DO CHEF POTE 130G MR MAKER"]
-        }
-        
-        dia_atual = obter_dia_atual()
-        
-        for linha, produtos in linhas_produtos.items():
-            for i, produto in enumerate(produtos):
-                total_semana = random.randint(1000, 7000)
-                qtd_apontada = random.randint(0, total_semana)
-                percentual = (qtd_apontada / total_semana) * 100
-                saldo_semana = total_semana - qtd_apontada
-                
-                data.append({
-                    'LINHA': linha,
-                    'DESCRPROD': produto,
-                    'SEQ': i + 1,
-                    'META_DIA': random.randint(100, 1000),
-                    'QTDAPONTADA': qtd_apontada,
-                    'TOTALSEMANA': total_semana,
-                    'PERC': round(percentual, 1),
-                    'SALDOSEMANA': saldo_semana,
-                    'DIA_ATUAL': dia_atual,
-                    'COLUNA_USADA': dia_atual
-                })
-        
-        return pd.DataFrame(data)
-    
-    df_processado = load_data()
-    produtos_por_linha = obter_produtos_por_linha(df_processado)
-    
-    st.sidebar.info("📝 **Usando dados de exemplo**")
-
-# Filtros
-st.sidebar.header("🔍 Filtros")
-status_todos = st.sidebar.checkbox("Todos", value=True, key="todos")
-status_target = st.sidebar.checkbox("No Target (≥90%)", value=True, key="target")
-status_andamento = st.sidebar.checkbox("Em Andamento (75-89%)", value=True, key="andamento")
-status_atencao = st.sidebar.checkbox("Atenção (<75%)", value=True, key="atencao")
-buscar_linha = st.sidebar.text_input("🔎 Buscar Linha:")
-
-# Filtrar e ORDENAR linhas por status (do melhor para o pior)
-linhas_disponiveis = df_processado['LINHA'].unique()
-linhas_com_status = []
-
-for linha in linhas_disponiveis:
-    dados_linha = df_processado[df_processado['LINHA'] == linha]
-    total_produzido = dados_linha['QTDAPONTADA'].sum()
-    total_objetivo = dados_linha['TOTALSEMANA'].sum()
-    percentual_linha = (total_produzido / total_objetivo * 100) if total_objetivo > 0 else 0
-    
-    # Obter cor e prioridade do status
-    _, _, _, prioridade = obter_cor_status(percentual_linha)
-    
-    status_ok = False
-    if percentual_linha >= 90 and status_target:
-        status_ok = True
-    elif 75 <= percentual_linha < 90 and status_andamento:
-        status_ok = True
-    elif percentual_linha < 75 and status_atencao:
-        status_ok = True
-    
-    if buscar_linha and buscar_linha.lower() not in linha.lower():
-        status_ok = False
-    
-    if status_ok:
-        linhas_com_status.append({
-            'nome': linha,
-            'percentual': percentual_linha,
-            'prioridade': prioridade,
-            'cor': obter_cor_status(percentual_linha)[0]
-        })
-
-# SOLUÇÃO: Ordenar linhas por status (do melhor para o pior)
-# Prioridade: 1 (Azul) > 2 (Verde) > 3 (Amarelo) > 4 (Vermelho)
-linhas_ordenadas = sorted(linhas_com_status, key=lambda x: x['prioridade'])
-
-# Extrair apenas os nomes das linhas ordenadas
-linhas_filtradas = [linha['nome'] for linha in linhas_ordenadas]
-
-st.session_state.linhas_filtradas = linhas_filtradas
-
-# ✅ AUTO-REFRESH COM ATUALIZAÇÃO GARANTIDA
-if st.session_state.auto_refresh:
-    refresh_count = st_autorefresh(
-        interval=st.session_state.refresh_interval * 1000, 
-        limit=100, 
-        key="auto_refresh_component"
+    # Seleção da fonte de dados
+    data_source = st.sidebar.radio(
+        "Selecione a fonte de dados:",
+        ["GitHub CSV", "Upload Excel"],
+        index=0,
+        key="data_source_radio"
     )
     
-    # ✅ VERIFICAR ATUALIZAÇÃO DO GITHUB no intervalo configurado
-    if refresh_count > 0 and st.session_state.data_source == "github" and st.session_state.github_url:
-        df_importado = importar_csv_github(st.session_state.github_url)
-        if df_importado is not None:
-            st.session_state.df_processado = processar_dados_base_real(df_importado)
-            st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
-            st.session_state.last_refresh_time = time.time()
-            st.session_state.refresh_counter += 1
-            st.session_state.data_last_updated = time.time()
-
-# ✅ ROTAÇÃO AUTOMÁTICA COM ST_AUTOREFRESH
-# Chamar as funções de rotação que usam st_autorefresh
-atualizar_rotacao_produtos()
-atualizar_rotacao_paginas()
-
-# Indicador visual de auto-refresh
-if st.session_state.auto_refresh:
-    current_time = time.time()
-    time_since_last_refresh = current_time - st.session_state.last_refresh_time
-    tempo_restante = max(0, st.session_state.refresh_interval - time_since_last_refresh)
+    if data_source == "GitHub CSV":
+        st.session_state.data_source = "github"
+        
+        github_url = st.sidebar.text_input(
+            "🔗 URL do arquivo CSV no GitHub:",
+            value=st.session_state.github_url,
+            placeholder="https://github.com/usuario/repositorio/arquivo.csv",
+            help="Cole a URL direta do arquivo CSV no GitHub"
+        )
+        
+        col1, col2 = st.sidebar.columns(2)
+        
+        with col1:
+            if st.button("📥 Carregar do GitHub", type="primary"):
+                if github_url:
+                    with st.spinner("Carregando dados do GitHub..."):
+                        df_importado = importar_csv_github(github_url)
+                        if df_importado is not None:
+                            st.session_state.df_processado = processar_dados_base_real(df_importado)
+                            st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
+                            st.session_state.github_url = github_url
+                            st.session_state.data_last_updated = time.time()
+                            st.session_state.data_loaded = True
+                            st.rerun()
+                else:
+                    st.sidebar.warning("⚠️ Por favor, insira uma URL do GitHub")
+        
+        with col2:
+            if st.session_state.github_url and st.session_state.df_processado is not None:
+                if st.button("🔄 Atualizar Dados"):
+                    with st.spinner("Atualizando dados do GitHub..."):
+                        df_importado = importar_csv_github(st.session_state.github_url)
+                        if df_importado is not None:
+                            st.session_state.df_processado = processar_dados_base_real(df_importado)
+                            st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
+                            st.session_state.refresh_counter += 1
+                            st.session_state.data_last_updated = time.time()
+                            st.rerun()
     
-    st.markdown(f"""
-    <div class="auto-refresh-indicator" title="Auto-Refresh Ativo">
-        🔄 {int(tempo_restante)}s
-    </div>
-    """, unsafe_allow_html=True)
-
-# Organizar em grid com paginação
-linhas_pagina_atual = obter_linhas_pagina_atual()
-
-if len(linhas_pagina_atual) > 0:
-    # Calcular layout baseado no número de linhas por página
-    num_cols = 2  # Sempre 2 colunas
-    num_rows = (len(linhas_pagina_atual) + num_cols - 1) // num_cols
-    
-    for row in range(num_rows):
-        cols = st.columns(num_cols)
-        for col in range(num_cols):
-            idx = row * num_cols + col
-            if idx < len(linhas_pagina_atual):
-                linha = linhas_pagina_atual[idx]
-                with cols[col]:
-                    rotation_idx = st.session_state.rotacao_por_linha.get(linha, 0)
-                    create_compact_card(linha, df_processado, produtos_por_linha, rotation_idx)
-    
-    # Indicador de paginação
-    total_linhas = len(st.session_state.get('linhas_filtradas', []))
-    total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
-
-# Resumo geral
-st.sidebar.markdown("---")
-st.sidebar.subheader("📊 Resumo Geral")
-
-total_geral_produzido = df_processado['QTDAPONTADA'].sum()
-total_geral_objetivo = df_processado['TOTALSEMANA'].sum()
-perc_geral = (total_geral_produzido / total_geral_objetivo * 100) if total_geral_objetivo > 0 else 0
-
-# Estatísticas
-linhas_target = 0
-linhas_andamento = 0
-linhas_atencao = 0
-
-for linha in linhas_disponiveis:
-    dados_linha = df_processado[df_processado['LINHA'] == linha]
-    total_produzido = dados_linha['QTDAPONTADA'].sum()
-    total_objetivo = dados_linha['TOTALSEMANA'].sum()
-    percentual_linha = (total_produzido / total_objetivo * 100) if total_objetivo > 0 else 0
-    
-    if percentual_linha >= 90:
-        linhas_target += 1
-    elif percentual_linha >= 75:
-        linhas_andamento += 1
     else:
-        linhas_atencao += 1
+        st.session_state.data_source = "upload"
+        
+        arquivo = st.sidebar.file_uploader(
+            "📤 Carregar planilha Excel",
+            type=['xlsx', 'xls'],
+            help="Faça upload da planilha com os dados de produção"
+        )
+        
+        if arquivo is not None:
+            with st.spinner("Processando arquivo Excel..."):
+                df_importado = importar_excel(arquivo)
+                if df_importado is not None:
+                    st.session_state.df_processado = processar_dados_base_real(df_importado)
+                    st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
+                    st.session_state.data_last_updated = time.time()
+                    st.session_state.data_loaded = True
+                    st.rerun()
 
-st.sidebar.metric("Total Produzido", f"{total_geral_produzido:,}")
-st.sidebar.metric("Meta Total", f"{total_geral_objetivo:,}")
-st.sidebar.metric("Eficiência Geral", f"{perc_geral:.1f}%")
+    # Botão para limpar dados carregados
+    if st.session_state.df_processado is not None:
+        if st.sidebar.button("🗑️ Limpar Dados Atuais"):
+            st.session_state.df_processado = None
+            st.session_state.produtos_por_linha = None
+            st.session_state.github_url = "https://github.com/ALN84/produ/blob/main/backups/dash_prod.csv"
+            st.session_state.data_last_updated = None
+            st.session_state.last_github_hash = None
+            st.session_state.data_loaded = False
+            st.rerun()
 
-st.sidebar.markdown("### 🎯 Distribuição por Status")
-st.sidebar.success(f"**No Target:** {linhas_target} linhas")
-st.sidebar.warning(f"**Em Andamento:** {linhas_andamento} linhas")
-st.sidebar.error(f"**Atenção:** {linhas_atencao} linhas")
+    # Exibir dia atual na sidebar
+    dia_atual = obter_dia_atual()
+    st.sidebar.markdown(f"**📅 Dia de Hoje: {dia_atual}**")
 
-# Informações de sistema
-st.sidebar.markdown("---")
-st.sidebar.subheader("🔄 Status do Sistema")
+    # Configurações de caracteres
+    st.sidebar.header("⚙️ Configurações de Texto")
+    novo_max_linha = st.sidebar.slider(
+        "Máx. caracteres - Nome da Linha",
+        min_value=10,
+        max_value=50,
+        value=st.session_state.max_caracteres_linha
+    )
 
-if st.session_state.auto_refresh:
-    current_time = time.time()
-    time_since_last_refresh = current_time - st.session_state.last_refresh_time
-    tempo_restante = max(0, st.session_state.refresh_interval - time_since_last_refresh)
-    st.sidebar.info(f"**⏱️ Próximo refresh em: {int(tempo_restante)}s**")
+    novo_max_produto = st.sidebar.slider(
+        "Máx. caracteres - Nome do Produto", 
+        min_value=10,
+        max_value=50,
+        value=st.session_state.max_caracteres_produto
+    )
 
-# Legenda das cores
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎨 Legenda de Status")
-st.sidebar.markdown("""
-- **🔵 Azul**: Meta Atingida (≥85%)
-- **🟢 Verde**: Próximo da Meta (70-84%)
-- **🟡 Amarelo**: Em Andamento (50-69%)
-- **🔴 Vermelho**: Atenção (<50%)
-""")
+    st.session_state.max_caracteres_linha = novo_max_linha
+    st.session_state.max_caracteres_produto = novo_max_produto
+
+    # ✅ CONFIGURAÇÃO DE AUTO-REFRESH MELHORADA
+    st.sidebar.header("🔄 Auto-Refresh & Rotação")
+
+    auto_refresh = st.sidebar.checkbox(
+        "Ativar Auto-Refresh com atualização de dados", 
+        value=st.session_state.auto_refresh,
+        help="Atualiza automaticamente os dados do GitHub quando houver mudanças"
+    )
+
+    refresh_interval = st.sidebar.slider(
+        "Intervalo de verificação (segundos)", 
+        min_value=10, 
+        max_value=300, 
+        value=st.session_state.refresh_interval,
+        help="Intervalo para verificar se o arquivo no GitHub foi atualizado"
+    )
+
+    # ✅ CONFIGURAÇÃO DE ROTAÇÃO MELHORADA
+    st.sidebar.header("🔄 Rotação & Paginação")
+
+    rotacao_ativa = st.sidebar.checkbox(
+        "Ativar rotação automática", 
+        value=st.session_state.rotacao_ativa
+    )
+
+    # Configurações de tempo
+    st.sidebar.subheader("⏱️ Temporização")
+
+    tempo_produto = st.sidebar.slider(
+        "Segundos por produto", 
+        min_value=5, 
+        max_value=30, 
+        value=st.session_state.tempo_por_produto,
+        help="Tempo que cada produto fica visível"
+    )
+
+    tempo_pagina = st.sidebar.slider(
+        "Segundos por página", 
+        min_value=10, 
+        max_value=60, 
+        value=st.session_state.tempo_por_pagina,
+        help="Tempo que cada página fica visível antes de trocar"
+    )
+
+    linhas_por_pagina = st.sidebar.selectbox(
+        "Linhas por página",
+        options=[4, 6, 8, 10],
+        index=0,
+        help="Número de linhas exibidas por vez (2x2, 2x3, etc)"
+    )
+
+    st.session_state.auto_refresh = auto_refresh
+    st.session_state.refresh_interval = refresh_interval
+    st.session_state.rotacao_ativa = rotacao_ativa
+    st.session_state.tempo_por_produto = tempo_produto
+    st.session_state.tempo_por_pagina = tempo_pagina
+    st.session_state.linhas_por_pagina = linhas_por_pagina
+
+    # Indicador de status da rotação
+    if st.session_state.rotacao_ativa:
+        modo_atual = "Produtos" if st.session_state.modo_rotacao == "produtos" else "Páginas"
+        tempo_atual = st.session_state.tempo_por_produto if st.session_state.modo_rotacao == "produtos" else st.session_state.tempo_por_pagina
+        
+        st.sidebar.info(f"**🔄 Modo: {modo_atual}**")
+        st.sidebar.caption(f"Tempo: {tempo_atual}s")
+        
+        # Informações da paginação
+        total_linhas = len(st.session_state.get('linhas_filtradas', []))
+        total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
+        
+        if total_paginas > 1:
+            st.sidebar.progress((st.session_state.pagina_atual + 1) / total_paginas)
+            st.sidebar.caption(f"Página {st.session_state.pagina_atual + 1} de {total_paginas}")
+
+    # Botão manual para forçar atualização
+    if st.sidebar.button("🔄 Forçar Refresh Manual", type="primary"):
+        st.session_state.refresh_counter += 1
+        if st.session_state.rotacao_ativa:
+            for linha in st.session_state.get('linhas_filtradas', []):
+                if linha not in st.session_state.rotacao_por_linha:
+                    st.session_state.rotacao_por_linha[linha] = 0
+                st.session_state.rotacao_por_linha[linha] += 1
+        st.session_state.last_refresh_time = time.time()
+        st.rerun()
+
+    # Carregar dados - Prioridade para dados carregados
+    if st.session_state.df_processado is not None:
+        df_processado = st.session_state.df_processado
+        produtos_por_linha = st.session_state.produtos_por_linha
+        
+        if st.session_state.data_source == "github":
+            st.sidebar.info("📊 **Fonte:** GitHub CSV")
+            if st.session_state.github_url:
+                st.sidebar.caption(f"URL: {st.session_state.github_url[:50]}...")
+        else:
+            st.sidebar.info("📊 **Fonte:** Arquivo Excel")
+        
+    else:
+        @st.cache_data(ttl=60)
+        def load_data():
+            data = []
+            linhas_produtos = {
+                "VINAGRE 500 1": ["8 - VINAGRE DE ALCOOL 500ML SADIO"],
+                "TEMPERO SECO SACHE 1": ["3343 - ALECRIM PC 7G SADIO", "9961 - TEMPERO DO CHEF PC 30G SADIO"],
+                "TEMPERO SECO MANUAL 1": ["7488 - PIMENTA PRETA REFIL 40G MR MAKER", "9704 - TEMPERO DO CHEF POTE 130G MR MAKER"]
+            }
+            
+            dia_atual = obter_dia_atual()
+            
+            for linha, produtos in linhas_produtos.items():
+                for i, produto in enumerate(produtos):
+                    total_semana = random.randint(1000, 7000)
+                    qtd_apontada = random.randint(0, total_semana)
+                    percentual = (qtd_apontada / total_semana) * 100
+                    saldo_semana = total_semana - qtd_apontada
+                    
+                    data.append({
+                        'LINHA': linha,
+                        'DESCRPROD': produto,
+                        'SEQ': i + 1,
+                        'META_DIA': random.randint(100, 1000),
+                        'QTDAPONTADA': qtd_apontada,
+                        'TOTALSEMANA': total_semana,
+                        'PERC': round(percentual, 1),
+                        'SALDOSEMANA': saldo_semana,
+                        'DIA_ATUAL': dia_atual,
+                        'COLUNA_USADA': dia_atual
+                    })
+            
+            return pd.DataFrame(data)
+        
+        df_processado = load_data()
+        produtos_por_linha = obter_produtos_por_linha(df_processado)
+        
+        st.sidebar.info("📝 **Usando dados de exemplo**")
+
+    # Filtros
+    st.sidebar.header("🔍 Filtros")
+    status_todos = st.sidebar.checkbox("Todos", value=True, key="todos")
+    status_target = st.sidebar.checkbox("No Target (≥90%)", value=True, key="target")
+    status_andamento = st.sidebar.checkbox("Em Andamento (75-89%)", value=True, key="andamento")
+    status_atencao = st.sidebar.checkbox("Atenção (<75%)", value=True, key="atencao")
+    buscar_linha = st.sidebar.text_input("🔎 Buscar Linha:")
+
+    # Filtrar e ORDENAR linhas por status (do melhor para o pior)
+    linhas_disponiveis = df_processado['LINHA'].unique()
+    linhas_com_status = []
+
+    for linha in linhas_disponiveis:
+        dados_linha = df_processado[df_processado['LINHA'] == linha]
+        total_produzido = dados_linha['QTDAPONTADA'].sum()
+        total_objetivo = dados_linha['TOTALSEMANA'].sum()
+        percentual_linha = (total_produzido / total_objetivo * 100) if total_objetivo > 0 else 0
+        
+        # Obter cor e prioridade do status
+        _, _, _, prioridade = obter_cor_status(percentual_linha)
+        
+        status_ok = False
+        if percentual_linha >= 90 and status_target:
+            status_ok = True
+        elif 75 <= percentual_linha < 90 and status_andamento:
+            status_ok = True
+        elif percentual_linha < 75 and status_atencao:
+            status_ok = True
+        
+        if buscar_linha and buscar_linha.lower() not in linha.lower():
+            status_ok = False
+        
+        if status_ok:
+            linhas_com_status.append({
+                'nome': linha,
+                'percentual': percentual_linha,
+                'prioridade': prioridade,
+                'cor': obter_cor_status(percentual_linha)[0]
+            })
+
+    # SOLUÇÃO: Ordenar linhas por status (do melhor para o pior)
+    # Prioridade: 1 (Azul) > 2 (Verde) > 3 (Amarelo) > 4 (Vermelho)
+    linhas_ordenadas = sorted(linhas_com_status, key=lambda x: x['prioridade'])
+
+    # Extrair apenas os nomes das linhas ordenadas
+    linhas_filtradas = [linha['nome'] for linha in linhas_ordenadas]
+
+    st.session_state.linhas_filtradas = linhas_filtradas
+
+    # ✅ AUTO-REFRESH COM ATUALIZAÇÃO GARANTIDA - CORRIGIDO
+    if st.session_state.auto_refresh:
+        refresh_count = st_autorefresh(
+            interval=st.session_state.refresh_interval * 1000, 
+            limit=100, 
+            key="auto_refresh_component"
+        )
+        
+        # ✅ VERIFICAR ATUALIZAÇÃO DO GITHUB no intervalo configurado
+        if refresh_count > 0 and st.session_state.data_source == "github" and st.session_state.github_url:
+            df_importado = importar_csv_github(st.session_state.github_url)
+            if df_importado is not None:
+                st.session_state.df_processado = processar_dados_base_real(df_importado)
+                st.session_state.produtos_por_linha = obter_produtos_por_linha(st.session_state.df_processado)
+                st.session_state.last_refresh_time = time.time()
+                st.session_state.refresh_counter += 1
+                st.session_state.data_last_updated = time.time()
+                st.rerun()
+
+    # ✅ ROTAÇÃO AUTOMÁTICA COM ST_AUTOREFRESH
+    # Chamar as funções de rotação que usam st_autorefresh
+    atualizar_rotacao_produtos()
+    atualizar_rotacao_paginas()
+
+    # Indicador visual de auto-refresh
+    if st.session_state.auto_refresh:
+        current_time = time.time()
+        time_since_last_refresh = current_time - st.session_state.last_refresh_time
+        tempo_restante = max(0, st.session_state.refresh_interval - time_since_last_refresh)
+        
+        st.markdown(f"""
+        <div class="auto-refresh-indicator" title="Auto-Refresh Ativo">
+            🔄 {int(tempo_restante)}s
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ✅ CORREÇÃO: Usar um container único para os gráficos
+    dashboard_container = st.container()
+    
+    with dashboard_container:
+        # Organizar em grid com paginação
+        linhas_pagina_atual = obter_linhas_pagina_atual()
+
+        if len(linhas_pagina_atual) > 0:
+            # Calcular layout baseado no número de linhas por página
+            num_cols = 2  # Sempre 2 colunas
+            num_rows = (len(linhas_pagina_atual) + num_cols - 1) // num_cols
+            
+            for row in range(num_rows):
+                cols = st.columns(num_cols)
+                for col in range(num_cols):
+                    idx = row * num_cols + col
+                    if idx < len(linhas_pagina_atual):
+                        linha = linhas_pagina_atual[idx]
+                        with cols[col]:
+                            rotation_idx = st.session_state.rotacao_por_linha.get(linha, 0)
+                            create_compact_card(linha, df_processado, produtos_por_linha, rotation_idx)
+            
+            # Indicador de paginação
+            total_linhas = len(st.session_state.get('linhas_filtradas', []))
+            total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
+
+    # Resumo geral
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📊 Resumo Geral")
+
+    total_geral_produzido = df_processado['QTDAPONTADA'].sum()
+    total_geral_objetivo = df_processado['TOTALSEMANA'].sum()
+    perc_geral = (total_geral_produzido / total_geral_objetivo * 100) if total_geral_objetivo > 0 else 0
+
+    # Estatísticas
+    linhas_target = 0
+    linhas_andamento = 0
+    linhas_atencao = 0
+
+    for linha in linhas_disponiveis:
+        dados_linha = df_processado[df_processado['LINHA'] == linha]
+        total_produzido = dados_linha['QTDAPONTADA'].sum()
+        total_objetivo = dados_linha['TOTALSEMANA'].sum()
+        percentual_linha = (total_produzido / total_objetivo * 100) if total_objetivo > 0 else 0
+        
+        if percentual_linha >= 90:
+            linhas_target += 1
+        elif percentual_linha >= 75:
+            linhas_andamento += 1
+        else:
+            linhas_atencao += 1
+
+    st.sidebar.metric("Total Produzido", f"{total_geral_produzido:,}")
+    st.sidebar.metric("Meta Total", f"{total_geral_objetivo:,}")
+    st.sidebar.metric("Eficiência Geral", f"{perc_geral:.1f}%")
+
+    st.sidebar.markdown("### 🎯 Distribuição por Status")
+    st.sidebar.success(f"**No Target:** {linhas_target} linhas")
+    st.sidebar.warning(f"**Em Andamento:** {linhas_andamento} linhas")
+    st.sidebar.error(f"**Atenção:** {linhas_atencao} linhas")
+
+    # Informações de sistema
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔄 Status do Sistema")
+
+    if st.session_state.auto_refresh:
+        current_time = time.time()
+        time_since_last_refresh = current_time - st.session_state.last_refresh_time
+        tempo_restante = max(0, st.session_state.refresh_interval - time_since_last_refresh)
+        st.sidebar.info(f"**⏱️ Próximo refresh em: {int(tempo_restante)}s**")
+
+    # Legenda das cores
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎨 Legenda de Status")
+    st.sidebar.markdown("""
+    - **🔵 Azul**: Meta Atingida (≥85%)
+    - **🟢 Verde**: Próximo da Meta (70-84%)
+    - **🟡 Amarelo**: Em Andamento (50-69%)
+    - **🔴 Vermelho**: Atenção (<50%)
+    """)
