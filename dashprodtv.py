@@ -279,7 +279,12 @@ def create_gauge_chart(percentual, height=120):
         },
         domain = {'x': [0, 1], 'y': [0, 1]},
         gauge = {
-            'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'axis': {
+                'range': [None, 100], 
+                'tickwidth': 0,           # ✅ Largura zero para esconder ticks
+                'tickcolor': "rgba(0,0,0,0)",  # ✅ Cor transparente
+                'showticklabels': False   # ✅ OCULTA OS MARCADORES
+            },
             'bar': {'color': color, 'thickness': 1},
             'bgcolor': "white",
             'borderwidth': 0,
@@ -822,3 +827,4 @@ st.sidebar.markdown("""
 - **🔴 Vermelho**: Atenção (<50%)
 
 """)
+
