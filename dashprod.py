@@ -340,55 +340,40 @@ def obter_cor_status(percentual):
     else:
         return "#dc3545", "🔴", "Atenção", 4
 
-# ✅ CORREÇÃO: Funções de rotação simplificadas
 def atualizar_rotacao():
-    """Atualiza a rotação de produtos e páginas de forma controlada"""
+    """Versão simplificada - sempre alterna entre produtos e páginas por tempo"""
     if not st.session_state.rotacao_ativa:
         return
     
     current_time = time.time()
+    time_since_last_rotation = current_time - st.session_state.last_rotation_update
     
     if st.session_state.modo_rotacao == "produtos":
-        # Verificar se é hora de atualizar produtos
-        time_since_last_rotation = current_time - st.session_state.last_rotation_update
         if time_since_last_rotation >= st.session_state.tempo_por_produto:
-            # Avançar produto em todas as linhas
+            # Avança produtos apenas nas linhas que têm múltiplos produtos
             for linha in st.session_state.get('linhas_filtradas', []):
-                if linha not in st.session_state.rotacao_por_linha:
-                    st.session_state.rotacao_por_linha[linha] = 0
-                
                 produtos_da_linha = st.session_state.produtos_por_linha.get(linha, [])
-                if produtos_da_linha:
+                if len(produtos_da_linha) > 1:
+                    if linha not in st.session_state.rotacao_por_linha:
+                        st.session_state.rotacao_por_linha[linha] = 0
                     st.session_state.rotacao_por_linha[linha] = (
                         st.session_state.rotacao_por_linha[linha] + 1
                     ) % len(produtos_da_linha)
             
-            st.session_state.produto_refresh_count += 1
             st.session_state.last_rotation_update = current_time
             
-            # Verificar se todos completaram um ciclo
-            completou_ciclo = all(
-                st.session_state.rotacao_por_linha.get(linha, 0) == 0
-                for linha in st.session_state.get('linhas_filtradas', [])
-            )
-            
-            if completou_ciclo:
+            # Sempre muda para modo linhas após o tempo dos produtos
+            if time_since_last_rotation >= st.session_state.tempo_por_produto:
                 st.session_state.modo_rotacao = "linhas"
-                st.session_state.ultima_troca = current_time
     
-    elif st.session_state.modo_rotacao == "linhas":
-        # Verificar se é hora de trocar página
-        time_since_last_rotation = current_time - st.session_state.last_rotation_update
+    else:  # modo_rotacao == "linhas"
         if time_since_last_rotation >= st.session_state.tempo_por_pagina:
             total_linhas = len(st.session_state.get('linhas_filtradas', []))
             total_paginas = max(1, (total_linhas + st.session_state.linhas_por_pagina - 1) // st.session_state.linhas_por_pagina)
             
-            if total_paginas > 1:
-                st.session_state.pagina_atual = (st.session_state.pagina_atual + 1) % total_paginas
-                st.session_state.pagina_refresh_count += 1
-            
-            st.session_state.modo_rotacao = "produtos"
+            st.session_state.pagina_atual = (st.session_state.pagina_atual + 1) % total_paginas
             st.session_state.last_rotation_update = current_time
+            st.session_state.modo_rotacao = "produtos"
 
 def obter_linhas_pagina_atual():
     """Retorna as linhas que devem ser exibidas na página atual"""
