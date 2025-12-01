@@ -100,30 +100,59 @@ def detectar_coluna_dia(df):
 def importar_csv_github(url):
     """Importa dados de um arquivo CSV no GitHub"""
     try:
-        # Para URLs raw do GitHub
-        if 'raw.githubusercontent.com' not in url and 'github.com' in url:
-            url = url.replace('github.com', 'raw.githubusercontent.com')
-            url = url.replace('/blob/', '/')
+        # Log para debug
+        st.sidebar.write(f"📡 Tentando acessar URL: {url}")
+        
+        # Converter URL do GitHub para formato raw
+        url_raw = url
+        
+        # Se for uma URL de visualização do GitHub, converter para raw
+        if 'github.com' in url and '/blob/' in url:
+            url_raw = url.replace('github.com', 'raw.githubusercontent.com')
+            url_raw = url_raw.replace('/blob/', '/')
+        # Se já for raw.githubusercontent.com, usar diretamente
+        elif 'raw.githubusercontent.com' in url:
+            url_raw = url
+        # Se for um link direto do GitHub sem /blob/
+        elif 'github.com' in url and '/raw/' not in url:
+            url_raw = url.replace('github.com', 'raw.githubusercontent.com')
+        
+        st.sidebar.write(f"🔄 URL convertida: {url_raw}")
         
         # Fazer requisição para o arquivo
-        response = requests.get(url)
+        response = requests.get(url_raw)
+        st.sidebar.write(f"📥 Status da resposta: {response.status_code}")
+        
+        if response.status_code != 200:
+            st.error(f"❌ Erro ao acessar URL: Status {response.status_code}")
+            return None
+            
         response.raise_for_status()
         
-        # ✅ CALCULAR HASH para detectar mudanças
+        # Calcular hash para detectar mudanças
         current_hash = hash(response.text)
         
         # Ler CSV com ponto e vírgula como separador
-        df = pd.read_csv(io.StringIO(response.text), sep=';')
+        try:
+            df = pd.read_csv(io.StringIO(response.text), sep=';')
+        except:
+            # Tentar com separador padrão (vírgula)
+            try:
+                df = pd.read_csv(io.StringIO(response.text))
+            except Exception as e:
+                st.error(f"❌ Erro ao ler CSV: {e}")
+                return None
         
-        # ✅ ATUALIZADO: Verificar se as colunas necessárias existem (DHAPO é opcional)
+        # Verificar colunas necessárias
         colunas_necessarias = ['LINHA', 'DESCRPROD', 'QTDAPONTADA', 'TOTALSEMANA', 'SALDOSEMANA']
         colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
         
         if colunas_faltantes:
             st.error(f"❌ Colunas faltantes no CSV: {colunas_faltantes}")
+            st.error(f"✅ Colunas disponíveis: {list(df.columns)}")
             return None
         
-        # ✅ NOVO: Verificar se a coluna DHAPO existe e avisar se não
+        # Avisar se coluna DHAPO não existe
         if 'DHAPO' not in df.columns:
             st.warning("⚠️ Coluna DHAPO não encontrada no CSV. Os dados de último apontamento não serão exibidos.")
         
@@ -131,10 +160,11 @@ def importar_csv_github(url):
         st.session_state.data_last_updated = time.time()
         st.session_state.last_github_hash = current_hash
         
+        st.sidebar.success("✅ Dados carregados com sucesso!")
         return df
         
     except Exception as e:
-        st.error(f"Erro ao importar arquivo CSV do GitHub: {e}")
+        st.error(f"❌ Erro ao importar arquivo CSV do GitHub: {str(e)}")
         return None
 
 def verificar_atualizacao_github():
@@ -827,5 +857,6 @@ st.sidebar.markdown("""
 - **🔴 Vermelho**: Atenção (<50%)
 
 """)
+
 
 
